@@ -12,7 +12,7 @@ from py_common import log
 ## for JSON files here. JSON file names here must match the original media file name, but with a
 ## .info.json or .json extension. JSON files will be taken from the media's folder first, and if not
 ## present there a suitably named JSON file in the below directory will be used.
-alternate_json_dir = ""
+alternate_json_dir = "/data/desktop_external/metadata_parent/all"
 
 
 def scene_from_json(scene_id):
@@ -60,8 +60,15 @@ def scene_from_json(scene_id):
         #scene["image"] = thumbnail
     if url := yt_json.get("webpage_url"):
         scene["url"] = url
-    scene["performers"] = [{"name": actor} for actor in yt_json.get("cast", [])]
+    if casts := yt_json.get("uploader"):
+        scene["performers"] = [{"name":casts}]
+    elif casts := yt_json.get("channel"):
+        scene["performers"] = [{"name":casts}]        
 
+    if studio := yt_json.get("user",{}).get("name"):
+        scene["Studio"] = {"name":studio}
+    elif studio := yt_json.get("uploader",{}):
+        scene["Studio"] = {"name":studio}
     tags = yt_json.get("tags", []) + yt_json.get("categories", [])
     scene["tags"] = [{"name": tag} for tag in tags]
 
