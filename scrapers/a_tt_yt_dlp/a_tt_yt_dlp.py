@@ -52,10 +52,12 @@ def scene_from_json(scene_id):
 
     yt_json = json.loads(json_file.read_text(encoding="utf-8"))
 
-    if title := yt_json.get("title"):
-        scene["title"] = title
-    if thumbnail := yt_json.get("thumbnail"):
-        scene["image"] = thumbnail
+    #Sceneid = yt_json.get("id",)
+
+    if title := yt_json.get("title",{}):
+        scene["title"] = f"{title}"
+    #if thumbnail := yt_json.get("thumbnail"):
+        #scene["image"] = thumbnail
     if url := yt_json.get("webpage_url"):
         scene["url"] = url
     scene["performers"] = [{"name": actor} for actor in yt_json.get("cast", [])]
