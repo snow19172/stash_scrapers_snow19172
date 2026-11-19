@@ -13,6 +13,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any, cast
 
 from py_common import log
+from py_common.config import get_config
 from py_common.deps import ensure_requirements
 from py_common.types import (
     ScrapedGallery,
@@ -27,6 +28,15 @@ from py_common.util import dig, scraper_args
 
 ensure_requirements("lxml")
 from lxml import etree
+
+config = get_config(
+    default="""
+# Optional directory containing sidecars for media whose sidecars are not stored
+# beside the media. Existing sidecar patterns and filenames remain unchanged.
+# Leave blank to search media directories only.
+sidecar_directory =
+"""
+)
 
 
 @dataclass(frozen=True)
@@ -295,6 +305,30 @@ def own_sidecar_names(stem: str, name: str) -> list[str]:
     ]
 
 
+def alternate_sidecar_directory() -> Path | None:
+    value = str(getattr(config, "sidecar_directory", "")).strip()
+    if not value:
+        return None
+    directory = Path(value).expanduser()
+    if not directory.is_dir():
+        log.warning(f"Alternate sidecar directory does not exist: {directory}")
+        return None
+    return directory
+
+
+def alternate_sidecar_candidates(
+    directory: Path, stem: str, name: str
+) -> Iterator[tuple[Source, bool]]:
+    "Sidecars in the configured fallback directory, using the existing filenames"
+    folder = [(directory / filename, True) for filename in FOLDER_SIDECARS]
+    own = [(directory / filename, False) for filename in own_sidecar_names(stem, name)]
+    seen: set[Path] = set()
+    for path, is_folder_level in folder + own:
+        if path not in seen and path.is_file():
+            seen.add(path)
+            yield path, is_folder_level
+
+
 def archive_member(media: Path) -> Member | None:
     "The archive and path inside it, when `media` is a file Stash found in an archive"
     for parent in media.parents:
@@ -342,6 +376,10 @@ def candidate_sidecars(media: Path) -> Iterator[tuple[Source, bool]]:
     Yielding in this order lets the caller merge by overwriting:
     a title in the file's own .nfo lands on top of one from the folder's
     """
+    stem = media.name if media.is_dir() else media.stem
+    if alternate_directory := alternate_sidecar_directory():
+        yield from alternate_sidecar_candidates(alternate_directory, stem, media.name)
+
     if member := archive_member(media):
         yield from sidecars_in_archive(member)
         return
@@ -578,7 +616,12 @@ def extract_urls(root: etree._Element, dialect: Dialect) -> list[str]:
     return urls
 
 
-def extract_image(root: etree._Element, dialect: Dialect, media: Path) -> str | None:
+def extract_image(
+    root: etree._Element,
+    dialect: Dialect,
+    media: Path,
+    directory: Path | None = None,
+) -> str | None:
     """
     The first image we can actually deliver
 
@@ -586,7 +629,8 @@ def extract_image(root: etree._Element, dialect: Dialect, media: Path) -> str | 
     the artwork the *arrs download sits right there beside the video,
     but the URL it came from is a third-party CDN that may well have moved on
     """
-    directory = media if media.is_dir() else media.parent
+    if directory is None:
+        directory = media if media.is_dir() else media.parent
     references = all_text(root, dialect.images)
 
     candidates = chain(
@@ -793,7 +837,11 @@ def read_sidecar(path: Source, media: Path) -> ScrapedScene:
         return scraped
 
     log.debug(f"{path.name}: reading as {dialect.name}")
-    directory = media if media.is_dir() else media.parent
+    directory = (
+        path.parent
+        if isinstance(path, Path)
+        else (media if media.is_dir() else media.parent)
+    )
 
     if title := first_text(root, dialect.title):
         if dialect.composite_title and (parts := COMPOSITE_TITLE.match(title)):
@@ -816,7 +864,7 @@ def read_sidecar(path: Source, media: Path) -> ScrapedScene:
         scraped["groups"] = groups
     if urls := extract_urls(root, dialect):
         scraped["urls"] = scraped.get("urls", []) + urls
-    if image := extract_image(root, dialect, media):
+    if image := extract_image(root, dialect, media, directory):
         scraped["image"] = image
 
     return scraped
