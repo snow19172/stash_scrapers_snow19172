@@ -1,0 +1,23 @@
+name: Sidecar_fork
+# requires: py_common
+
+sceneByFragment:
+  action: script
+  script:
+    - python
+    - Sidecar_fork.py
+    - scene-by-fragment
+
+galleryByFragment:
+  action: script
+  script:
+    - python
+    - Sidecar_fork.py
+    - gallery-by-fragment
+
+imageByFragment:
+  action: script
+  script:
+    - python
+    - Sidecar_fork.py
+    - image-by-fragment
