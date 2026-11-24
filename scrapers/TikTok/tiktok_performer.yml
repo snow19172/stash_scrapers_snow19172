@@ -1,0 +1,11 @@
+name: TikTok Performer
+#requires: yt-dlp
+
+performerByURL:
+  - action: script
+    url:
+      - tiktok.com/@
+    script:
+      - python
+      - tiktok_performer.py
+      - scrapeURL
