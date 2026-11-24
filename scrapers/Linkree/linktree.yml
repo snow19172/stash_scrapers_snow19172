@@ -1,0 +1,9 @@
+name: Linktree
+performerByURL:
+  - action: script
+    url:
+      - linktr.ee/
+    script:
+      - python
+      - linktree_scraper.py
+      - scrapeURL
